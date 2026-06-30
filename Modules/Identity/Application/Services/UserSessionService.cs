@@ -1,0 +1,264 @@
+using AutoMapper;
+using salesdesk_api.UnitOfWork;
+using Microsoft.AspNetCore.Http;
+using salesdesk_api.Helpers;
+using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using salesdesk_api.Shared.Infrastructure.Abstractions;
+
+namespace salesdesk_api.Modules.Identity.Application.Services
+{
+    public class UserSessionService : IUserSessionService
+    {
+        private readonly IUnitOfWork _uow;
+        private readonly IMapper _mapper;
+        private readonly ILocalizationService _loc;
+        private readonly IUserSessionCacheService _userSessionCacheService;
+        private readonly IAuditLogWriter _auditLogWriter;
+
+        public UserSessionService(IUnitOfWork uow, IMapper mapper, ILocalizationService loc, IUserSessionCacheService userSessionCacheService, IAuditLogWriter auditLogWriter)
+        {
+            _uow = uow; _mapper = mapper; _loc = loc; _userSessionCacheService = userSessionCacheService; _auditLogWriter = auditLogWriter;
+        }
+
+        public async Task<ApiResponse<PagedResponse<UserSessionDto>>> GetAllSessionsAsync(PagedRequest request)
+        {
+            try
+            {
+                if (request == null)
+                {
+                    request = new PagedRequest();
+                }
+
+                if (request.Filters == null)
+                {
+                    request.Filters = new List<Filter>();
+                }
+
+                var query = _uow.UserSessions.Query()
+                    .AsNoTracking()
+                    .Where(u => !u.IsDeleted)
+                    .Include(u => u.CreatedByUser)
+                    .Include(u => u.UpdatedByUser)
+                    .Include(u => u.DeletedByUser)
+                    .ApplySearch(request.Search, QueryHelper.CommonSearchableColumns)
+                    .ApplyFilters(request.Filters, request.FilterLogic);
+
+                var sortBy = request.SortBy ?? nameof(UserSession.Id);
+                var isDesc = string.Equals(request.SortDirection, "desc", StringComparison.OrdinalIgnoreCase);
+
+                query = query.ApplySorting(sortBy, request.SortDirection);
+
+                var page = await query.ToPagedItemsAsync(request).ConfigureAwait(false);
+
+                var items = page.Items;
+
+                var dtos = items.Select(x => _mapper.Map<UserSessionDto>(x)).ToList();
+
+                var pagedResponse = new PagedResponse<UserSessionDto>
+                {
+                    Items = dtos,
+                    TotalCount = page.TotalCount,
+                    PageNumber = page.PageNumber,
+                    PageSize = page.PageSize
+                };
+
+                return ApiResponse<PagedResponse<UserSessionDto>>.SuccessResult(pagedResponse, _loc.GetLocalizedString("UserSessionService.UserSessionsRetrieved"));
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<PagedResponse<UserSessionDto>>.ErrorResult(
+                    _loc.GetLocalizedString("UserSessionService.InternalServerError"),
+                    _loc.GetLocalizedString("UserSessionService.GetAllSessionsExceptionMessage", ex.Message),
+                    StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<UserSessionDto>> GetSessionByIdAsync(long id)
+        {
+            try
+            {
+                var item = await _uow.UserSessions.GetByIdAsync(id).ConfigureAwait(false);
+                if (item == null) return ApiResponse<UserSessionDto>.ErrorResult(
+                    _loc.GetLocalizedString("UserSessionService.UserSessionNotFound"),
+                    _loc.GetLocalizedString("UserSessionService.UserSessionNotFound"),
+                    StatusCodes.Status404NotFound);
+
+                // Reload with navigation properties for mapping
+                var itemWithNav = await _uow.UserSessions.Query()
+                    .AsNoTracking()
+                    .Include(u => u.CreatedByUser)
+                    .Include(u => u.UpdatedByUser)
+                    .Include(u => u.DeletedByUser)
+                    .FirstOrDefaultAsync(u => u.Id == id && !u.IsDeleted).ConfigureAwait(false);
+
+                var dto = _mapper.Map<UserSessionDto>(itemWithNav ?? item);
+                return ApiResponse<UserSessionDto>.SuccessResult(dto, _loc.GetLocalizedString("UserSessionService.UserSessionRetrieved"));
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<UserSessionDto>.ErrorResult(
+                    _loc.GetLocalizedString("UserSessionService.InternalServerError"),
+                    _loc.GetLocalizedString("UserSessionService.GetSessionByIdExceptionMessage", ex.Message),
+                    StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<UserSessionDto>> CreateSessionAsync(CreateUserSessionDto dto)
+        {
+            try
+            {
+                var entity = _mapper.Map<UserSession>(dto);
+                await _uow.UserSessions.AddAsync(entity).ConfigureAwait(false);
+                await _uow.SaveChangesAsync().ConfigureAwait(false);
+
+                await _auditLogWriter.WriteAsync(new AuditLogWriteEntry(
+                    "user-session.create",
+                    "UserSession",
+                    entity.Id.ToString(),
+                    "Succeeded",
+                    "identity",
+                    NewValues: CreateUserSessionAuditSnapshot(entity),
+                    ChangedFields: ["UserId", "SessionId", "CreatedAt"])).ConfigureAwait(false);
+
+                // Reload with navigation properties for mapping
+                var itemWithNav = await _uow.UserSessions.Query()
+                    .AsNoTracking()
+                    .Include(u => u.CreatedByUser)
+                    .Include(u => u.UpdatedByUser)
+                    .Include(u => u.DeletedByUser)
+                    .FirstOrDefaultAsync(u => u.Id == entity.Id && !u.IsDeleted).ConfigureAwait(false);
+
+                var outDto = _mapper.Map<UserSessionDto>(itemWithNav ?? entity);
+                return ApiResponse<UserSessionDto>.SuccessResult(outDto, _loc.GetLocalizedString("UserSessionService.UserSessionCreated"));
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<UserSessionDto>.ErrorResult(
+                    _loc.GetLocalizedString("UserSessionService.InternalServerError"),
+                    _loc.GetLocalizedString("UserSessionService.CreateSessionExceptionMessage", ex.Message),
+                    StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<object>> RevokeSessionAsync(long id)
+        {
+            try
+            {
+                var entity = await _uow.UserSessions.GetByIdAsync(id).ConfigureAwait(false);
+                if (entity == null) return ApiResponse<object>.ErrorResult(
+                    _loc.GetLocalizedString("UserSessionService.UserSessionNotFound"),
+                    _loc.GetLocalizedString("UserSessionService.UserSessionNotFound"),
+                    StatusCodes.Status404NotFound);
+                var oldValues = CreateUserSessionAuditSnapshot(entity);
+                entity.RevokedAt = DateTimeProvider.Now;
+                await _uow.UserSessions.UpdateAsync(entity).ConfigureAwait(false);
+                await _uow.SaveChangesAsync().ConfigureAwait(false);
+                _userSessionCacheService.RemoveSession(entity.SessionId);
+                await _auditLogWriter.WriteAsync(new AuditLogWriteEntry(
+                    "user-session.revoke",
+                    "UserSession",
+                    entity.Id.ToString(),
+                    "Succeeded",
+                    "identity",
+                    OldValues: oldValues,
+                    NewValues: CreateUserSessionAuditSnapshot(entity),
+                    ChangedFields: ["RevokedAt"])).ConfigureAwait(false);
+                return ApiResponse<object>.SuccessResult(null, _loc.GetLocalizedString("UserSessionService.UserSessionRevoked"));
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<object>.ErrorResult(
+                    _loc.GetLocalizedString("UserSessionService.InternalServerError"),
+                    _loc.GetLocalizedString("UserSessionService.RevokeSessionExceptionMessage", ex.Message),
+                    StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<object>> DeleteSessionAsync(long id)
+        {
+            try
+            {
+                var entity = await _uow.UserSessions.GetByIdAsync(id).ConfigureAwait(false);
+                if (entity == null) return ApiResponse<object>.ErrorResult(
+                    _loc.GetLocalizedString("UserSessionService.UserSessionNotFound"),
+                    _loc.GetLocalizedString("UserSessionService.UserSessionNotFound"),
+                    StatusCodes.Status404NotFound);
+                var oldValues = CreateUserSessionAuditSnapshot(entity);
+                await _uow.UserSessions.SoftDeleteAsync(id).ConfigureAwait(false);
+                await _uow.SaveChangesAsync().ConfigureAwait(false);
+                _userSessionCacheService.RemoveSession(entity.SessionId);
+                await _auditLogWriter.WriteAsync(new AuditLogWriteEntry(
+                    "user-session.delete",
+                    "UserSession",
+                    entity.Id.ToString(),
+                    "Succeeded",
+                    "identity",
+                    OldValues: oldValues,
+                    ChangedFields: ["IsDeleted"])).ConfigureAwait(false);
+                return ApiResponse<object>.SuccessResult(null, _loc.GetLocalizedString("UserSessionService.UserSessionDeleted"));
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<object>.ErrorResult(
+                    _loc.GetLocalizedString("UserSessionService.InternalServerError"),
+                    _loc.GetLocalizedString("UserSessionService.DeleteSessionExceptionMessage", ex.Message),
+                    StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<object>> RevokeActiveSessionByUserIdAsync(long userId)
+        {
+            try
+            {
+                var activeSessions = await _uow.UserSessions.FindAsync(s => s.UserId == userId && s.RevokedAt == null).ConfigureAwait(false);
+                var sessionsList = activeSessions.ToList();
+                if (sessionsList != null && sessionsList.Any())
+                {
+                    var revokedSessionIds = sessionsList.Select(x => x.SessionId).ToList();
+                    foreach (var session in sessionsList)
+                    {
+                        session.RevokedAt = DateTimeProvider.Now;
+                        await _uow.UserSessions.UpdateAsync(session).ConfigureAwait(false);
+                        _userSessionCacheService.RemoveSession(session.SessionId);
+                    }
+                    await _uow.SaveChangesAsync().ConfigureAwait(false);
+                    await _auditLogWriter.WriteAsync(new AuditLogWriteEntry(
+                        "user-session.revoke-active-by-user",
+                        "User",
+                        userId.ToString(),
+                        "Succeeded",
+                        "identity",
+                        NewValues: new
+                        {
+                            UserId = userId,
+                            RevokedSessionIds = revokedSessionIds,
+                            Count = revokedSessionIds.Count
+                        },
+                        ChangedFields: ["RevokedSessionIds"])).ConfigureAwait(false);
+                }
+                return ApiResponse<object>.SuccessResult(null, _loc.GetLocalizedString("UserSessionService.UserSessionRevoked"));
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<object>.ErrorResult(
+                    _loc.GetLocalizedString("UserSessionService.InternalServerError"),
+                    _loc.GetLocalizedString("UserSessionService.RevokeActiveSessionExceptionMessage", ex.Message),
+                    StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        private static object CreateUserSessionAuditSnapshot(UserSession entity)
+        {
+            return new
+            {
+                entity.Id,
+                entity.UserId,
+                entity.SessionId,
+                entity.CreatedAt,
+                entity.RevokedAt
+            };
+        }
+    }
+}
