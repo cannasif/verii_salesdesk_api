@@ -4,6 +4,7 @@ using salesdesk_api.Modules.AccessControl.Application.Services;
 using salesdesk_api.Modules.Audit.Application.Services;
 using salesdesk_api.Modules.Identity.Application.Services;
 using salesdesk_api.Modules.Notification.Application.Services;
+using salesdesk_api.Modules.NetsisIntegrations.Application.Services;
 using salesdesk_api.Modules.SalesDesk.Application.Services;
 using salesdesk_api.Modules.SmtpIntegration.Application.Services;
 using salesdesk_api.Modules.System.Application.Services;
@@ -73,6 +74,7 @@ public static class ModuleServiceCollectionExtensions
     public static IServiceCollection AddSalesDeskModule(this IServiceCollection services)
     {
         services.AddScoped<ISalesDeskService, SalesDeskService>();
+        services.AddScoped<INetsisReadService, NetsisReadService>();
 
         return services;
     }
