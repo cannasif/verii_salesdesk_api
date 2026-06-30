@@ -9,7 +9,7 @@ public sealed class SalesDeskCustomerConfiguration : BaseEntityConfiguration<Sal
 {
     protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskCustomer> builder)
     {
-        builder.ToTable("RII_SD_Customers");
+        builder.ToTable("RII_SD_CUSTOMER");
         builder.Property(x => x.Code).HasMaxLength(32).IsRequired();
         builder.Property(x => x.Name).HasMaxLength(220).IsRequired();
         builder.Property(x => x.ContactName).HasMaxLength(160);
@@ -27,7 +27,7 @@ public sealed class SalesDeskPotentialCustomerConfiguration : BaseEntityConfigur
 {
     protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskPotentialCustomer> builder)
     {
-        builder.ToTable("RII_SD_PotentialCustomers");
+        builder.ToTable("RII_SD_POTENTIAL_CUSTOMER");
         builder.Property(x => x.Code).HasMaxLength(32).IsRequired();
         builder.Property(x => x.CompanyName).HasMaxLength(220).IsRequired();
         builder.Property(x => x.ContactName).HasMaxLength(160);
@@ -44,7 +44,7 @@ public sealed class SalesDeskProductConfiguration : BaseEntityConfiguration<Sale
 {
     protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskProduct> builder)
     {
-        builder.ToTable("RII_SD_Products");
+        builder.ToTable("RII_SD_PRODUCT");
         builder.Property(x => x.Code).HasMaxLength(32).IsRequired();
         builder.Property(x => x.Name).HasMaxLength(220).IsRequired();
         builder.Property(x => x.Category).HasMaxLength(100);
@@ -62,7 +62,7 @@ public sealed class SalesDeskProductCustomerConfiguration : BaseEntityConfigurat
 {
     protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskProductCustomer> builder)
     {
-        builder.ToTable("RII_SD_ProductCustomers");
+        builder.ToTable("RII_SD_PRODUCT_CUSTOMER");
         builder.HasOne(x => x.Product).WithMany(x => x.ProductCustomers).HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.NoAction);
         builder.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.NoAction);
         builder.HasOne(x => x.PotentialCustomer).WithMany().HasForeignKey(x => x.PotentialCustomerId).OnDelete(DeleteBehavior.NoAction);
@@ -74,7 +74,7 @@ public sealed class SalesDeskQuoteConfiguration : BaseEntityConfiguration<SalesD
 {
     protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskQuote> builder)
     {
-        builder.ToTable("RII_SD_Quotes");
+        builder.ToTable("RII_SD_QUOTE");
         builder.Property(x => x.QuoteNumber).HasMaxLength(32).IsRequired();
         builder.Property(x => x.SubTotal).HasPrecision(18, 2);
         builder.Property(x => x.VatTotal).HasPrecision(18, 2);
@@ -90,7 +90,7 @@ public sealed class SalesDeskQuoteLineConfiguration : BaseEntityConfiguration<Sa
 {
     protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskQuoteLine> builder)
     {
-        builder.ToTable("RII_SD_QuoteLines");
+        builder.ToTable("RII_SD_QUOTE_LINE");
         builder.Property(x => x.Quantity).HasPrecision(18, 2);
         builder.Property(x => x.UnitPrice).HasPrecision(18, 2);
         builder.Property(x => x.VatRate).HasPrecision(9, 2);
@@ -104,7 +104,7 @@ public sealed class SalesDeskInvoiceConfiguration : BaseEntityConfiguration<Sale
 {
     protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskInvoice> builder)
     {
-        builder.ToTable("RII_SD_Invoices");
+        builder.ToTable("RII_SD_INVOICE");
         builder.Property(x => x.InvoiceNumber).HasMaxLength(32).IsRequired();
         builder.Property(x => x.DiscountRate).HasPrecision(9, 2);
         builder.Property(x => x.DiscountTotal).HasPrecision(18, 2);
@@ -123,7 +123,7 @@ public sealed class SalesDeskInvoiceLineConfiguration : BaseEntityConfiguration<
 {
     protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskInvoiceLine> builder)
     {
-        builder.ToTable("RII_SD_InvoiceLines");
+        builder.ToTable("RII_SD_INVOICE_LINE");
         builder.Property(x => x.Quantity).HasPrecision(18, 2);
         builder.Property(x => x.UnitPrice).HasPrecision(18, 2);
         builder.Property(x => x.VatRate).HasPrecision(9, 2);
@@ -137,7 +137,7 @@ public sealed class SalesDeskTaskConfiguration : BaseEntityConfiguration<SalesDe
 {
     protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskTask> builder)
     {
-        builder.ToTable("RII_SD_Tasks");
+        builder.ToTable("RII_SD_TASK");
         builder.Property(x => x.Title).HasMaxLength(220).IsRequired();
         builder.Property(x => x.Description).HasMaxLength(2000);
         builder.Property(x => x.GroupName).HasMaxLength(100);
@@ -150,7 +150,7 @@ public sealed class SalesDeskVisitConfiguration : BaseEntityConfiguration<SalesD
 {
     protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskVisit> builder)
     {
-        builder.ToTable("RII_SD_Visits");
+        builder.ToTable("RII_SD_VISIT");
         builder.Property(x => x.Title).HasMaxLength(220).IsRequired();
         builder.Property(x => x.VisitType).HasMaxLength(80);
         builder.Property(x => x.Notes).HasMaxLength(2000);
@@ -163,7 +163,7 @@ public sealed class SalesDeskVisitFormConfiguration : BaseEntityConfiguration<Sa
 {
     protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskVisitForm> builder)
     {
-        builder.ToTable("RII_SD_VisitForms");
+        builder.ToTable("RII_SD_VISIT_FORM");
         builder.Property(x => x.Title).HasMaxLength(220).IsRequired();
         builder.Property(x => x.Content).HasMaxLength(4000);
         builder.HasOne(x => x.Visit).WithMany().HasForeignKey(x => x.VisitId).OnDelete(DeleteBehavior.NoAction);
@@ -175,7 +175,7 @@ public sealed class SalesDeskFixedAssetConfiguration : BaseEntityConfiguration<S
 {
     protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskFixedAsset> builder)
     {
-        builder.ToTable("RII_SD_FixedAssets");
+        builder.ToTable("RII_SD_FIXED_ASSET");
         builder.Property(x => x.Code).HasMaxLength(32).IsRequired();
         builder.Property(x => x.Name).HasMaxLength(220).IsRequired();
         builder.Property(x => x.Category).HasMaxLength(100);
@@ -188,7 +188,7 @@ public sealed class SalesDeskRecurringPaymentConfiguration : BaseEntityConfigura
 {
     protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskRecurringPayment> builder)
     {
-        builder.ToTable("RII_SD_RecurringPayments");
+        builder.ToTable("RII_SD_RECURRING_PAYMENT");
         builder.Property(x => x.Name).HasMaxLength(220).IsRequired();
         builder.Property(x => x.Category).HasMaxLength(100);
         builder.Property(x => x.Amount).HasPrecision(18, 2);
@@ -201,7 +201,7 @@ public sealed class SalesDeskSoftwareResearchConfiguration : BaseEntityConfigura
 {
     protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskSoftwareResearch> builder)
     {
-        builder.ToTable("RII_SD_SoftwareResearches");
+        builder.ToTable("RII_SD_SOFTWARE_RESEARCH");
         builder.Property(x => x.Provider).HasMaxLength(80).IsRequired();
         builder.Property(x => x.Keywords).HasMaxLength(800);
         builder.Property(x => x.Host).HasMaxLength(180);
@@ -215,7 +215,7 @@ public sealed class SalesDeskErpNewsItemConfiguration : BaseEntityConfiguration<
 {
     protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskErpNewsItem> builder)
     {
-        builder.ToTable("RII_SD_ErpNewsItems");
+        builder.ToTable("RII_SD_ERP_NEWS_ITEM");
         builder.Property(x => x.Topic).HasMaxLength(80).IsRequired();
         builder.Property(x => x.Title).HasMaxLength(320).IsRequired();
         builder.Property(x => x.Source).HasMaxLength(180);
@@ -228,7 +228,7 @@ public sealed class SalesDeskGmailMessageConfiguration : BaseEntityConfiguration
 {
     protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskGmailMessage> builder)
     {
-        builder.ToTable("RII_SD_GmailMessages");
+        builder.ToTable("RII_SD_GMAIL_MESSAGE");
         builder.Property(x => x.GmailMessageId).HasMaxLength(180).IsRequired();
         builder.Property(x => x.Sender).HasMaxLength(240).IsRequired();
         builder.Property(x => x.Subject).HasMaxLength(320).IsRequired();

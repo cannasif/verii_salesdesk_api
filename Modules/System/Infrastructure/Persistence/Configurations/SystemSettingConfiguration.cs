@@ -9,7 +9,7 @@ namespace salesdesk_api.Modules.System.Infrastructure.Persistence.Configurations
     {
         protected override void ConfigureEntity(EntityTypeBuilder<SystemSetting> builder)
         {
-            builder.ToTable("RII_SD_SystemSettings");
+            builder.ToTable("RII_SD_SYSTEM_SETTING");
 
             builder.Property(x => x.NumberFormat).HasMaxLength(20).IsRequired();
             builder.Property(x => x.DecimalPlaces).IsRequired();

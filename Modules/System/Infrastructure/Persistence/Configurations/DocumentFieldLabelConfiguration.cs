@@ -9,7 +9,7 @@ namespace salesdesk_api.Modules.System.Infrastructure.Persistence.Configurations
     {
         protected override void ConfigureEntity(EntityTypeBuilder<DocumentFieldLabel> builder)
         {
-            builder.ToTable("DocumentFieldLabels");
+            builder.ToTable("RII_DOCUMENT_FIELD_LABEL");
 
             builder.Property(x => x.DocumentType).HasMaxLength(30).IsRequired();
             builder.Property(x => x.Scope).HasMaxLength(30).IsRequired();
@@ -23,10 +23,10 @@ namespace salesdesk_api.Modules.System.Infrastructure.Persistence.Configurations
 
             builder.HasIndex(x => new { x.DocumentType, x.Scope, x.FieldKey })
                 .IsUnique()
-                .HasDatabaseName("UX_DocumentFieldLabels_DocumentType_Scope_FieldKey");
+                .HasDatabaseName("UX_RII_DOCUMENT_FIELD_LABEL_DOCUMENT_TYPE_SCOPE_FIELD_KEY");
 
             builder.HasIndex(x => new { x.DocumentType, x.Scope, x.SortOrder })
-                .HasDatabaseName("IX_DocumentFieldLabels_DocumentType_Scope_SortOrder");
+                .HasDatabaseName("IX_RII_DOCUMENT_FIELD_LABEL_DOCUMENT_TYPE_SCOPE_SORT_ORDER");
         }
     }
 }

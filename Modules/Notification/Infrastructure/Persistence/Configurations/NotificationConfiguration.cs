@@ -8,7 +8,7 @@ namespace salesdesk_api.Modules.Notification.Infrastructure.Persistence.Configur
     {
         protected override void ConfigureEntity(EntityTypeBuilder<NotificationEntity> builder)
         {
-            builder.ToTable("Notifications");
+            builder.ToTable("RII_NOTIFICATION");
 
             builder.Property(x => x.TitleKey).IsRequired().HasMaxLength(200);
             builder.Property(x => x.TitleArgs).HasMaxLength(1000); // Arguments might be long JSON
