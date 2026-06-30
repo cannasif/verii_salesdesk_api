@@ -11,5 +11,6 @@ namespace salesdesk_api.Modules.Identity.Application.Services
         Task<ApiResponse<UserDto>> UpdateUserAsync(long id, UpdateUserDto dto);
         Task<ApiResponse<object>> DeleteUserAsync(long id);
         Task<ApiResponse<UserDto>> GetUserProfileAsync(string userId);
+        Task<ApiResponse<List<UserDto>>> GetActiveUsersAsync();
     }
 }

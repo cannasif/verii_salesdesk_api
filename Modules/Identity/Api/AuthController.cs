@@ -72,6 +72,14 @@ namespace salesdesk_api.Modules.Identity.Api
         }
 
         [Authorize]
+        [HttpGet("users/active")]
+        public async Task<ActionResult<ApiResponse<List<UserDto>>>> GetActiveUsers()
+        {
+            var result = await _userService.GetActiveUsersAsync();
+            return StatusCode(result.StatusCode, result);
+        }
+
+        [Authorize]
         [HttpGet("me/permissions")]
         public async Task<ActionResult<ApiResponse<MyPermissionsDto>>> GetMyPermissions()
         {

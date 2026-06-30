@@ -27,6 +27,16 @@ namespace salesdesk_api.Infrastructure.Startup
             var email = _configuration["BootstrapAdmin:Email"];
             var password = _configuration["BootstrapAdmin:Password"];
 
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                email = _configuration["AdminSettings:Email"];
+            }
+
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                password = _configuration["AdminSettings:Password"];
+            }
+
             if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
             {
                 return;

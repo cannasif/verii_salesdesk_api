@@ -180,6 +180,32 @@ namespace salesdesk_api.Modules.Identity.Application.Services
             }
         }
 
+        public async Task<ApiResponse<List<UserDto>>> GetActiveUsersAsync()
+        {
+            try
+            {
+                var users = await _uow.Users.Query()
+                    .AsNoTracking()
+                    .Where(u => !u.IsDeleted && u.IsActive)
+                    .Include(u => u.RoleNavigation)
+                    .OrderBy(u => u.FirstName)
+                    .ThenBy(u => u.LastName)
+                    .ThenBy(u => u.Username)
+                    .ToListAsync()
+                    .ConfigureAwait(false);
+
+                var dtos = users.Select(x => _mapper.Map<UserDto>(x)).ToList();
+                return ApiResponse<List<UserDto>>.SuccessResult(dtos, _loc.GetLocalizedString("UserService.UsersRetrieved"));
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<UserDto>>.ErrorResult(
+                    _loc.GetLocalizedString("UserService.InternalServerError"),
+                    _loc.GetLocalizedString("UserService.GetAllUsersExceptionMessage", ex.Message),
+                    StatusCodes.Status500InternalServerError);
+            }
+        }
+
         public async Task<ApiResponse<UserDto>> GetUserByIdAsync(long id)
         {
             try
