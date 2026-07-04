@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using salesdesk_api.Modules.SalesDesk.Domain.Entities;
+using salesdesk_api.Modules.SalesDesk.Domain.Enums;
 using salesdesk_api.Shared.Infrastructure.Persistence.Configurations;
 
 namespace salesdesk_api.Modules.SalesDesk.Infrastructure.Persistence.Configurations;
@@ -82,6 +83,8 @@ public sealed class SalesDeskQuoteConfiguration : BaseEntityConfiguration<SalesD
         builder.Property(x => x.Notes).HasMaxLength(2000);
         builder.HasOne(x => x.Customer).WithMany(x => x.Quotes).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.NoAction);
         builder.HasIndex(x => x.QuoteNumber).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.HasIndex(x => x.QuoteDate);
+        builder.HasIndex(x => x.CustomerId);
         builder.HasIndex(x => new { x.Status, x.QuoteDate });
     }
 }
@@ -114,7 +117,12 @@ public sealed class SalesDeskInvoiceConfiguration : BaseEntityConfiguration<Sale
         builder.Property(x => x.Notes).HasMaxLength(2000);
         builder.HasOne(x => x.Customer).WithMany(x => x.Invoices).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.NoAction);
         builder.HasOne(x => x.Quote).WithMany().HasForeignKey(x => x.QuoteId).OnDelete(DeleteBehavior.NoAction);
-        builder.HasIndex(x => x.InvoiceNumber).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.Property(x => x.InvoiceType)
+            .HasDefaultValue(SalesDeskInvoiceType.Sales)
+            .HasSentinel(SalesDeskInvoiceType.Sales);
+        builder.HasIndex(x => new { x.InvoiceNumber, x.InvoiceType }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.HasIndex(x => x.InvoiceDate);
+        builder.HasIndex(x => x.CustomerId);
         builder.HasIndex(x => new { x.Status, x.InvoiceDate });
     }
 }
@@ -143,6 +151,7 @@ public sealed class SalesDeskTaskConfiguration : BaseEntityConfiguration<SalesDe
         builder.Property(x => x.GroupName).HasMaxLength(100);
         builder.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.NoAction);
         builder.HasIndex(x => new { x.Status, x.Priority, x.DueDate });
+        builder.HasIndex(x => x.GroupName);
     }
 }
 
@@ -236,5 +245,86 @@ public sealed class SalesDeskGmailMessageConfiguration : BaseEntityConfiguration
         builder.Property(x => x.ThreadId).HasMaxLength(180);
         builder.HasIndex(x => x.GmailMessageId).IsUnique().HasFilter("[IsDeleted] = 0");
         builder.HasIndex(x => new { x.IsUnread, x.IsMeeting, x.ReceivedAt });
+    }
+}
+
+public sealed class SalesDeskGroupConfiguration : BaseEntityConfiguration<SalesDeskGroup>
+{
+    protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskGroup> builder)
+    {
+        builder.ToTable("RII_SD_GROUP");
+        builder.Property(x => x.Name).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.Description).HasMaxLength(500);
+        builder.HasIndex(x => x.Name);
+    }
+}
+
+public sealed class SalesDeskGroupMemberConfiguration : BaseEntityConfiguration<SalesDeskGroupMember>
+{
+    protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskGroupMember> builder)
+    {
+        builder.ToTable("RII_SD_GROUP_MEMBER");
+        builder.HasOne(x => x.Group).WithMany(x => x.Members).HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(x => new { x.GroupId, x.UserId }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.HasIndex(x => x.UserId);
+    }
+}
+
+public sealed class SalesDeskCompanyConfiguration : BaseEntityConfiguration<SalesDeskCompany>
+{
+    protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskCompany> builder)
+    {
+        builder.ToTable("RII_SD_COMPANY");
+        builder.Property(x => x.Name).HasMaxLength(220).IsRequired();
+        builder.Property(x => x.IpAddress).HasMaxLength(120);
+        builder.Property(x => x.IpUsername).HasMaxLength(120);
+        builder.Property(x => x.IpPassword).HasMaxLength(200);
+        builder.Property(x => x.VpnName).HasMaxLength(120);
+        builder.Property(x => x.VpnUsername).HasMaxLength(120);
+        builder.Property(x => x.VpnPassword).HasMaxLength(200);
+        builder.Property(x => x.VpnIpAddress).HasMaxLength(120);
+        builder.Property(x => x.VpnPort).HasMaxLength(20);
+        builder.Property(x => x.DatabaseUsername).HasMaxLength(120);
+        builder.Property(x => x.DatabasePassword).HasMaxLength(200);
+        builder.Property(x => x.LoginUrl).HasMaxLength(500);
+        builder.Property(x => x.Description).HasMaxLength(1000);
+        builder.Property(x => x.Description1).HasMaxLength(1000);
+        builder.HasIndex(x => x.Name);
+    }
+}
+
+public sealed class SalesDeskNoteConfiguration : BaseEntityConfiguration<SalesDeskNote>
+{
+    protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskNote> builder)
+    {
+        builder.ToTable("RII_SD_NOTE");
+        builder.Property(x => x.Title).HasMaxLength(220).IsRequired();
+        builder.Property(x => x.Content).HasMaxLength(4000);
+        builder.Property(x => x.CreatedByName).HasMaxLength(160).IsRequired();
+        builder.HasIndex(x => x.CreatedByUserId);
+    }
+}
+
+public sealed class SalesDeskNoteRecipientConfiguration : BaseEntityConfiguration<SalesDeskNoteRecipient>
+{
+    protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskNoteRecipient> builder)
+    {
+        builder.ToTable("RII_SD_NOTE_RECIPIENT");
+        builder.HasOne(x => x.Note).WithMany(x => x.Recipients).HasForeignKey(x => x.NoteId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(x => new { x.NoteId, x.UserId }).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.HasIndex(x => x.UserId);
+    }
+}
+
+public sealed class SalesDeskNoteNotificationConfiguration : BaseEntityConfiguration<SalesDeskNoteNotification>
+{
+    protected override void ConfigureEntity(EntityTypeBuilder<SalesDeskNoteNotification> builder)
+    {
+        builder.ToTable("RII_SD_NOTE_NOTIFICATION");
+        builder.Property(x => x.Title).HasMaxLength(220).IsRequired();
+        builder.Property(x => x.Message).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.CreatedByName).HasMaxLength(160).IsRequired();
+        builder.HasOne(x => x.Note).WithMany().HasForeignKey(x => x.NoteId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(x => new { x.RecipientUserId, x.DeliveredAt });
     }
 }

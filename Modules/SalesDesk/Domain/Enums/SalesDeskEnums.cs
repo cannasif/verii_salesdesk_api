@@ -63,3 +63,9 @@ public enum SalesDeskRecurringPaymentType
     Expense = 1,
     Income = 2
 }
+
+public enum SalesDeskInvoiceType
+{
+    Sales = 1,
+    Purchase = 2
+}

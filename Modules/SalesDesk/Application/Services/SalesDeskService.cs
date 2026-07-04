@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using salesdesk_api.Helpers;
 using salesdesk_api.Modules.SalesDesk.Application.Dtos;
 using salesdesk_api.Modules.SalesDesk.Domain.Entities;
 using salesdesk_api.Modules.SalesDesk.Domain.Enums;
@@ -8,7 +9,7 @@ using salesdesk_api.Shared.Infrastructure.Persistence;
 
 namespace salesdesk_api.Modules.SalesDesk.Application.Services;
 
-public sealed class SalesDeskService : ISalesDeskService
+public partial class SalesDeskService : ISalesDeskService
 {
     private readonly SalesDeskDbContext _db;
 
@@ -28,12 +29,18 @@ public sealed class SalesDeskService : ISalesDeskService
             CustomerCount = await _db.SalesDeskCustomers.CountAsync(x => !x.IsDeleted, cancellationToken),
             PotentialCount = await _db.SalesDeskPotentialCustomers.CountAsync(x => !x.IsDeleted, cancellationToken),
             ProductCount = await _db.SalesDeskProducts.CountAsync(x => !x.IsDeleted, cancellationToken),
-            OpenTaskCount = await _db.SalesDeskTasks.CountAsync(x => !x.IsDeleted && x.Status != SalesDeskTaskStatus.Completed, cancellationToken),
+            OpenTaskCount = await _db.SalesDeskTasks.CountAsync(
+                x => !x.IsDeleted &&
+                     (x.Status == SalesDeskTaskStatus.Open || x.Status == SalesDeskTaskStatus.InProgress),
+                cancellationToken),
             TodayVisitCount = await _db.SalesDeskVisits.CountAsync(x => !x.IsDeleted && x.VisitDate.Date == today, cancellationToken),
             PendingQuoteCount = await _db.SalesDeskQuotes.CountAsync(x => !x.IsDeleted && x.Status == SalesDeskDocumentStatus.Approved, cancellationToken),
             ToBeIssuedInvoiceCount = await _db.SalesDeskInvoices.CountAsync(x => !x.IsDeleted && x.Status == SalesDeskDocumentStatus.ToBeIssued, cancellationToken),
             MonthlySalesTotal = await _db.SalesDeskInvoices
-                .Where(x => !x.IsDeleted && x.Status == SalesDeskDocumentStatus.Issued && x.InvoiceDate >= monthStart)
+                .Where(x => !x.IsDeleted &&
+                            x.InvoiceType == SalesDeskInvoiceType.Sales &&
+                            x.Status == SalesDeskDocumentStatus.Issued &&
+                            x.InvoiceDate >= monthStart)
                 .SumAsync(x => (decimal?)x.GrandTotal, cancellationToken) ?? 0
         };
 
@@ -233,10 +240,21 @@ public sealed class SalesDeskService : ISalesDeskService
 
     public async Task<ApiResponse<SalesDeskQuoteDto>> CreateQuoteAsync(SalesDeskQuoteUpsertDto request, CancellationToken cancellationToken = default)
     {
-        var entity = new SalesDeskQuote();
-        await ApplyQuoteAsync(request, entity, cancellationToken);
-        entity.QuoteNumber = string.IsNullOrWhiteSpace(entity.QuoteNumber) ? await NextCodeAsync("TKL", _db.SalesDeskQuotes, x => x.QuoteNumber, cancellationToken) : entity.QuoteNumber.Trim();
-        return await AddAsync(entity, ToDto, "Teklif olusturuldu.", cancellationToken);
+        try
+        {
+            var entity = new SalesDeskQuote();
+            await ApplyQuoteAsync(request, entity, cancellationToken);
+            entity.QuoteNumber = string.IsNullOrWhiteSpace(entity.QuoteNumber)
+                ? await NextCodeAsync("TKL", _db.SalesDeskQuotes, x => x.QuoteNumber, cancellationToken)
+                : entity.QuoteNumber.Trim();
+            return await AddAsync(entity, ToDto, "Teklif olusturuldu.", cancellationToken);
+        }
+        catch (DbUpdateException ex) when (DbUpdateExceptionHelper.TryGetUniqueViolation(ex, out _))
+        {
+            return ApiResponse<SalesDeskQuoteDto>.ErrorResult(
+                "Bu teklif numarasi zaten kayitli.",
+                statusCode: StatusCodes.Status409Conflict);
+        }
     }
 
     public async Task<ApiResponse<SalesDeskQuoteDto>> UpdateQuoteAsync(long id, SalesDeskQuoteUpsertDto request, CancellationToken cancellationToken = default)
@@ -267,10 +285,21 @@ public sealed class SalesDeskService : ISalesDeskService
 
     public async Task<ApiResponse<SalesDeskInvoiceDto>> CreateInvoiceAsync(SalesDeskInvoiceUpsertDto request, CancellationToken cancellationToken = default)
     {
-        var entity = new SalesDeskInvoice();
-        await ApplyInvoiceAsync(request, entity, cancellationToken);
-        entity.InvoiceNumber = string.IsNullOrWhiteSpace(entity.InvoiceNumber) ? await NextCodeAsync("FTR", _db.SalesDeskInvoices, x => x.InvoiceNumber, cancellationToken) : entity.InvoiceNumber.Trim();
-        return await AddAsync(entity, ToDto, "Fatura olusturuldu.", cancellationToken);
+        try
+        {
+            var entity = new SalesDeskInvoice();
+            await ApplyInvoiceAsync(request, entity, cancellationToken);
+            entity.InvoiceNumber = string.IsNullOrWhiteSpace(entity.InvoiceNumber)
+                ? await NextCodeAsync("FTR", _db.SalesDeskInvoices, x => x.InvoiceNumber, cancellationToken)
+                : entity.InvoiceNumber.Trim();
+            return await AddAsync(entity, ToDto, "Fatura olusturuldu.", cancellationToken);
+        }
+        catch (DbUpdateException ex) when (DbUpdateExceptionHelper.TryGetUniqueViolation(ex, out _))
+        {
+            return ApiResponse<SalesDeskInvoiceDto>.ErrorResult(
+                "Bu fatura numarasi ve tipi icin kayit zaten mevcut.",
+                statusCode: StatusCodes.Status409Conflict);
+        }
     }
 
     public async Task<ApiResponse<SalesDeskInvoiceDto>> UpdateInvoiceAsync(long id, SalesDeskInvoiceUpsertDto request, CancellationToken cancellationToken = default)
@@ -298,10 +327,18 @@ public sealed class SalesDeskService : ISalesDeskService
     {
         var query = _db.SalesDeskTasks.AsNoTracking()
             .Include(x => x.Customer)
-            .Where(x => !x.IsDeleted && x.Status != SalesDeskTaskStatus.Completed && x.Status != SalesDeskTaskStatus.Cancelled)
+            .Where(x => !x.IsDeleted &&
+                        (x.Status == SalesDeskTaskStatus.Open || x.Status == SalesDeskTaskStatus.InProgress) &&
+                        (x.GroupName == null ||
+                         (x.GroupName != "HaftalikPlan" &&
+                          !x.GroupName.StartsWith("HaftalikPlan|") &&
+                          x.GroupName.ToLower() != "aktivite" &&
+                          !x.GroupName.ToLower().StartsWith("aktivite|") &&
+                          x.GroupName.ToLower() != "proje" &&
+                          !x.GroupName.ToLower().StartsWith("proje|"))))
             .ApplySearch(request.Search, nameof(SalesDeskTask.Title), nameof(SalesDeskTask.Description), nameof(SalesDeskTask.GroupName), "Customer.Name");
 
-        return PageAsync(query, request, ToDto, cancellationToken, nameof(SalesDeskTask.Id));
+        return PageAsync(query, request, ToDto, cancellationToken, nameof(SalesDeskTask.DueDate));
     }
 
     public Task<ApiResponse<SalesDeskTaskDto>> GetTaskAsync(long id, CancellationToken cancellationToken = default) =>
@@ -536,7 +573,7 @@ public sealed class SalesDeskService : ISalesDeskService
 
         var total = await query.CountAsync(cancellationToken);
         var pageNumber = request.PageNumber <= 0 ? 1 : request.PageNumber;
-        var pageSize = request.PageSize <= 0 ? 10 : Math.Min(request.PageSize, 200);
+        var pageSize = request.PageSize <= 0 ? 10 : Math.Min(request.PageSize, 500);
         var items = await query.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
 
         return ApiResponse<PagedResponse<TDto>>.SuccessResult(new PagedResponse<TDto>
@@ -669,6 +706,7 @@ public sealed class SalesDeskService : ISalesDeskService
     private async Task ApplyInvoiceAsync(SalesDeskInvoiceUpsertDto source, SalesDeskInvoice target, CancellationToken cancellationToken)
     {
         target.InvoiceNumber = source.InvoiceNumber?.Trim() ?? target.InvoiceNumber;
+        target.InvoiceType = source.InvoiceType;
         target.CustomerId = source.CustomerId;
         target.QuoteId = source.QuoteId;
         target.InvoiceDate = source.InvoiceDate;
@@ -865,6 +903,7 @@ public sealed class SalesDeskService : ISalesDeskService
     {
         Id = x.Id,
         InvoiceNumber = x.InvoiceNumber,
+        InvoiceType = x.InvoiceType,
         CustomerId = x.CustomerId,
         CustomerName = x.Customer?.Name ?? string.Empty,
         QuoteId = x.QuoteId,

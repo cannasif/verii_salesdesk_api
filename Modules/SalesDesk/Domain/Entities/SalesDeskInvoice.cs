@@ -6,6 +6,7 @@ namespace salesdesk_api.Modules.SalesDesk.Domain.Entities;
 public class SalesDeskInvoice : BaseEntity
 {
     public string InvoiceNumber { get; set; } = string.Empty;
+    public SalesDeskInvoiceType InvoiceType { get; set; } = SalesDeskInvoiceType.Sales;
     public long CustomerId { get; set; }
     public SalesDeskCustomer? Customer { get; set; }
     public long? QuoteId { get; set; }

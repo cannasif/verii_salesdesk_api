@@ -84,4 +84,25 @@ public interface ISalesDeskService
     Task<ApiResponse<SalesDeskGmailMessageDto>> CreateGmailMessageAsync(SalesDeskGmailMessageUpsertDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<SalesDeskGmailMessageDto>> UpdateGmailMessageAsync(long id, SalesDeskGmailMessageUpsertDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<object>> DeleteGmailMessageAsync(long id, CancellationToken cancellationToken = default);
+
+    Task<ApiResponse<List<SalesDeskGroupDto>>> GetGroupsAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponse<SalesDeskGroupDto>> GetGroupAsync(long id, CancellationToken cancellationToken = default);
+    Task<ApiResponse<SalesDeskGroupDto>> CreateGroupAsync(SalesDeskGroupCreateDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<SalesDeskGroupDto>> UpdateGroupAsync(long id, SalesDeskGroupUpdateDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<SalesDeskGroupDto>> SetGroupMembersAsync(long id, SalesDeskGroupMembersDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<object>> DeleteGroupAsync(long id, CancellationToken cancellationToken = default);
+
+    Task<ApiResponse<PagedResponse<SalesDeskCompanyDto>>> GetCompaniesAsync(PagedRequest request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<SalesDeskCompanyDto>> GetCompanyAsync(long id, CancellationToken cancellationToken = default);
+    Task<ApiResponse<SalesDeskCompanyDto>> CreateCompanyAsync(SalesDeskCompanyUpsertDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<SalesDeskCompanyDto>> UpdateCompanyAsync(long id, SalesDeskCompanyUpsertDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<object>> DeleteCompanyAsync(long id, CancellationToken cancellationToken = default);
+
+    Task<ApiResponse<List<SalesDeskNoteDto>>> GetNotesForUserAsync(long userId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<SalesDeskNoteDto>> GetNoteAsync(long id, CancellationToken cancellationToken = default);
+    Task<ApiResponse<SalesDeskNoteDto>> CreateNoteAsync(SalesDeskNoteCreateDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<SalesDeskNoteDto>> UpdateNoteAsync(long id, SalesDeskNoteUpdateDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<object>> DeleteNoteAsync(long id, CancellationToken cancellationToken = default);
+    Task<ApiResponse<List<SalesDeskNoteNotificationDto>>> PullPendingNoteNotificationsAsync(long userId, CancellationToken cancellationToken = default);
+    Task<ApiResponse<object>> AcknowledgeNoteNotificationAsync(long id, CancellationToken cancellationToken = default);
 }

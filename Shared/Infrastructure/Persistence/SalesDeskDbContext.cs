@@ -82,6 +82,12 @@ namespace salesdesk_api.Shared.Infrastructure.Persistence
         public DbSet<SalesDeskSoftwareResearch> SalesDeskSoftwareResearches { get; set; }
         public DbSet<SalesDeskErpNewsItem> SalesDeskErpNewsItems { get; set; }
         public DbSet<SalesDeskGmailMessage> SalesDeskGmailMessages { get; set; }
+        public DbSet<SalesDeskGroup> SalesDeskGroups { get; set; }
+        public DbSet<SalesDeskGroupMember> SalesDeskGroupMembers { get; set; }
+        public DbSet<SalesDeskCompany> SalesDeskCompanies { get; set; }
+        public DbSet<SalesDeskNote> SalesDeskNotes { get; set; }
+        public DbSet<SalesDeskNoteRecipient> SalesDeskNoteRecipients { get; set; }
+        public DbSet<SalesDeskNoteNotification> SalesDeskNoteNotifications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -124,6 +130,12 @@ namespace salesdesk_api.Shared.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new SalesDeskSoftwareResearchConfiguration());
             modelBuilder.ApplyConfiguration(new SalesDeskErpNewsItemConfiguration());
             modelBuilder.ApplyConfiguration(new SalesDeskGmailMessageConfiguration());
+            modelBuilder.ApplyConfiguration(new SalesDeskGroupConfiguration());
+            modelBuilder.ApplyConfiguration(new SalesDeskGroupMemberConfiguration());
+            modelBuilder.ApplyConfiguration(new SalesDeskCompanyConfiguration());
+            modelBuilder.ApplyConfiguration(new SalesDeskNoteConfiguration());
+            modelBuilder.ApplyConfiguration(new SalesDeskNoteRecipientConfiguration());
+            modelBuilder.ApplyConfiguration(new SalesDeskNoteNotificationConfiguration());
 
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
             {

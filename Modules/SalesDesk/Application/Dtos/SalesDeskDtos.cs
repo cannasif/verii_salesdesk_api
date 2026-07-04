@@ -227,6 +227,7 @@ public sealed class SalesDeskInvoiceDto
 {
     public long Id { get; set; }
     public string InvoiceNumber { get; set; } = string.Empty;
+    public SalesDeskInvoiceType InvoiceType { get; set; } = SalesDeskInvoiceType.Sales;
     public long CustomerId { get; set; }
     public string CustomerName { get; set; } = string.Empty;
     public long? QuoteId { get; set; }
@@ -247,6 +248,8 @@ public sealed class SalesDeskInvoiceUpsertDto
 {
     [MaxLength(32)]
     public string? InvoiceNumber { get; set; }
+
+    public SalesDeskInvoiceType InvoiceType { get; set; } = SalesDeskInvoiceType.Sales;
 
     [Required]
     public long CustomerId { get; set; }
@@ -514,4 +517,137 @@ public sealed class SalesDeskGmailMessageUpsertDto
 
     [MaxLength(180)]
     public string? ThreadId { get; set; }
+}
+
+public sealed class SalesDeskGroupDto
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public List<long> MemberUserIds { get; set; } = new();
+    public int MemberCount { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+
+public sealed class SalesDeskGroupCreateDto
+{
+    [Required, MaxLength(120)]
+    public string Name { get; set; } = string.Empty;
+
+    [MaxLength(500)]
+    public string? Description { get; set; }
+
+    public List<long> MemberUserIds { get; set; } = new();
+}
+
+public sealed class SalesDeskGroupUpdateDto
+{
+    [Required, MaxLength(120)]
+    public string Name { get; set; } = string.Empty;
+
+    [MaxLength(500)]
+    public string? Description { get; set; }
+}
+
+public sealed class SalesDeskGroupMembersDto
+{
+    public List<long> MemberUserIds { get; set; } = new();
+}
+
+public sealed class SalesDeskCompanyDto
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string IpAddress { get; set; } = string.Empty;
+    public string IpUsername { get; set; } = string.Empty;
+    public string IpPassword { get; set; } = string.Empty;
+    public string VpnName { get; set; } = string.Empty;
+    public string VpnUsername { get; set; } = string.Empty;
+    public string VpnPassword { get; set; } = string.Empty;
+    public string VpnIpAddress { get; set; } = string.Empty;
+    public string VpnPort { get; set; } = string.Empty;
+    public string DatabaseUsername { get; set; } = string.Empty;
+    public string DatabasePassword { get; set; } = string.Empty;
+    public string LoginUrl { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string Description1 { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+
+public sealed class SalesDeskCompanyUpsertDto
+{
+    [Required, MaxLength(220)]
+    public string Name { get; set; } = string.Empty;
+
+    [MaxLength(120)] public string? IpAddress { get; set; }
+    [MaxLength(120)] public string? IpUsername { get; set; }
+    [MaxLength(200)] public string? IpPassword { get; set; }
+    [MaxLength(120)] public string? VpnName { get; set; }
+    [MaxLength(120)] public string? VpnUsername { get; set; }
+    [MaxLength(200)] public string? VpnPassword { get; set; }
+    [MaxLength(120)] public string? VpnIpAddress { get; set; }
+    [MaxLength(20)] public string? VpnPort { get; set; }
+    [MaxLength(120)] public string? DatabaseUsername { get; set; }
+    [MaxLength(200)] public string? DatabasePassword { get; set; }
+    [MaxLength(500)] public string? LoginUrl { get; set; }
+    [MaxLength(1000)] public string? Description { get; set; }
+    [MaxLength(1000)] public string? Description1 { get; set; }
+}
+
+public sealed class SalesDeskNoteDto
+{
+    public long Id { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public long CreatedByUserId { get; set; }
+    public string CreatedByName { get; set; } = string.Empty;
+    public List<long> RecipientUserIds { get; set; } = new();
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+
+public sealed class SalesDeskNoteCreateDto
+{
+    [Required, MaxLength(220)]
+    public string Title { get; set; } = string.Empty;
+
+    [MaxLength(4000)]
+    public string? Content { get; set; }
+
+    public List<long> RecipientUserIds { get; set; } = new();
+
+    [Required]
+    public long CreatedByUserId { get; set; }
+
+    [Required, MaxLength(160)]
+    public string CreatedByName { get; set; } = string.Empty;
+
+    public bool NotifyRecipients { get; set; } = true;
+}
+
+public sealed class SalesDeskNoteUpdateDto
+{
+    [Required, MaxLength(220)]
+    public string Title { get; set; } = string.Empty;
+
+    [MaxLength(4000)]
+    public string? Content { get; set; }
+
+    public List<long> RecipientUserIds { get; set; } = new();
+
+    public bool NotifyRecipients { get; set; } = true;
+}
+
+public sealed class SalesDeskNoteNotificationDto
+{
+    public long Id { get; set; }
+    public long NoteId { get; set; }
+    public long RecipientUserId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public long CreatedByUserId { get; set; }
+    public string CreatedByName { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
 }
