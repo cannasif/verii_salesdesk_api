@@ -38,7 +38,6 @@ public partial class SalesDeskService : ISalesDeskService
             ToBeIssuedInvoiceCount = await _db.SalesDeskInvoices.CountAsync(x => !x.IsDeleted && x.Status == SalesDeskDocumentStatus.ToBeIssued, cancellationToken),
             MonthlySalesTotal = await _db.SalesDeskInvoices
                 .Where(x => !x.IsDeleted &&
-                            x.InvoiceType == SalesDeskInvoiceType.Sales &&
                             x.Status == SalesDeskDocumentStatus.Issued &&
                             x.InvoiceDate >= monthStart)
                 .SumAsync(x => (decimal?)x.GrandTotal, cancellationToken) ?? 0
@@ -212,6 +211,10 @@ public partial class SalesDeskService : ISalesDeskService
         if (!request.CustomerId.HasValue && !request.PotentialCustomerId.HasValue)
         {
             return ApiResponse<SalesDeskProductCustomerDto>.ErrorResult("Cari veya potansiyel cari secilmelidir.", statusCode: StatusCodes.Status400BadRequest);
+        }
+        if (request.CustomerId.HasValue && request.PotentialCustomerId.HasValue)
+        {
+            return ApiResponse<SalesDeskProductCustomerDto>.ErrorResult("Baglanti icin sadece cari veya sadece potansiyel cari secilmelidir.", statusCode: StatusCodes.Status400BadRequest);
         }
 
         var entity = new SalesDeskProductCustomer { ProductId = request.ProductId, CustomerId = request.CustomerId, PotentialCustomerId = request.PotentialCustomerId };
