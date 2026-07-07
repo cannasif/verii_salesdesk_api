@@ -48,9 +48,10 @@ public sealed class IisSafeHttpMethodConvention : IActionModelConvention
         return selector.AttributeRouteModel?.Template;
     }
 
-    private static string? BuildPutAliasTemplate(SelectorModel selector)
+    private static string BuildPutAliasTemplate(SelectorModel selector)
     {
-        return GetTemplate(selector);
+        var template = GetTemplate(selector)?.Trim('/');
+        return string.IsNullOrWhiteSpace(template) ? "update" : $"{template}/update";
     }
 
     private static string BuildDeleteAliasTemplate(SelectorModel selector)
