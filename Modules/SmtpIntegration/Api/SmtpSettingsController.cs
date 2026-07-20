@@ -34,6 +34,24 @@ public class SmtpSettingsController : ControllerBase
     [HttpPut]
     public async Task<ActionResult<ApiResponse<SmtpSettingsDto>>> Update([FromBody] UpdateSmtpSettingsDto dto)
     {
+        return await UpdateInternal(dto).ConfigureAwait(false);
+    }
+
+    /// <summary>IIS: frontend POST /api/SmtpSettings (PUT yerine).</summary>
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<SmtpSettingsDto>>> UpdateViaPostRoot([FromBody] UpdateSmtpSettingsDto dto)
+    {
+        return await UpdateInternal(dto).ConfigureAwait(false);
+    }
+
+    [HttpPost("update")]
+    public async Task<ActionResult<ApiResponse<SmtpSettingsDto>>> UpdateViaPost([FromBody] UpdateSmtpSettingsDto dto)
+    {
+        return await UpdateInternal(dto).ConfigureAwait(false);
+    }
+
+    private async Task<ActionResult<ApiResponse<SmtpSettingsDto>>> UpdateInternal(UpdateSmtpSettingsDto dto)
+    {
         var currentUserResponse = await _userService.GetCurrentUserIdAsync();
         if (!currentUserResponse.Success)
         {

@@ -38,15 +38,16 @@ public class SmtpSettingsService : ISmtpSettingsService
         _cache.Remove(CacheKey);
     }
 
+    private static IQueryable<SmtpSetting> ActiveSettings(IQueryable<SmtpSetting> query) =>
+        query.Where(x => !x.IsDeleted).OrderBy(x => x.Id);
+
     public async Task<ApiResponse<SmtpSettingsDto>> GetAsync()
     {
         try
         {
-            var entity = await _unitOfWork.SmtpSettings
-                .Query()
-                .AsNoTracking()
-                .Where(x => x.Id == 1 && !x.IsDeleted)
-                .FirstOrDefaultAsync().ConfigureAwait(false);
+            var entity = await ActiveSettings(_unitOfWork.SmtpSettings.Query().AsNoTracking())
+                .FirstOrDefaultAsync()
+                .ConfigureAwait(false);
 
             if (entity == null)
             {
@@ -85,65 +86,88 @@ public class SmtpSettingsService : ISmtpSettingsService
     {
         try
         {
+            // Id=1 ile INSERT SQL identity hatasi verir; mevcut satiri (silinmis dahil) guncelle veya identity ile ekle.
             var entity = await _unitOfWork.SmtpSettings
-                .Query()
-                .Where(x => x.Id == 1 && !x.IsDeleted)
-                .FirstOrDefaultAsync().ConfigureAwait(false);
+                .Query(tracking: true)
+                .OrderBy(x => x.Id)
+                .FirstOrDefaultAsync()
+                .ConfigureAwait(false);
+
+            var isNew = false;
 
             if (entity == null)
             {
+                isNew = true;
                 entity = new SmtpSetting
                 {
-                    Id = 1,
                     IsDeleted = false,
                     CreatedDate = DateTimeProvider.Now,
-                    CreatedBy = userId
+                    CreatedBy = userId,
                 };
 
                 _mapper.Map(dto, entity);
 
-                if (!string.IsNullOrWhiteSpace(dto.Password))
-                    entity.PasswordEncrypted = _protector.Protect(dto.Password);
+                if (string.IsNullOrWhiteSpace(dto.Password))
+                {
+                    return ApiResponse<SmtpSettingsDto>.ErrorResult(
+                        _localizationService.GetLocalizedString("MailController.SmtpSettingsIncomplete"),
+                        _localizationService.GetLocalizedString("MailController.SmtpSettingsIncomplete"),
+                        StatusCodes.Status400BadRequest);
+                }
 
+                entity.PasswordEncrypted = _protector.Protect(dto.Password);
                 entity.UpdatedDate = DateTimeProvider.Now;
                 entity.UpdatedBy = userId;
 
                 await _unitOfWork.SmtpSettings.AddAsync(entity).ConfigureAwait(false);
-                await _unitOfWork.SaveChangesAsync().ConfigureAwait(false);
+            }
+            else
+            {
+                entity.IsDeleted = false;
+                entity.DeletedDate = null;
+                entity.DeletedBy = null;
 
-                InvalidateCache();
+                _mapper.Map(dto, entity);
 
-                var createdDto = _mapper.Map<SmtpSettingsDto>(entity);
+                if (!string.IsNullOrWhiteSpace(dto.Password))
+                {
+                    entity.PasswordEncrypted = _protector.Protect(dto.Password);
+                }
+                else if (string.IsNullOrWhiteSpace(entity.PasswordEncrypted))
+                {
+                    return ApiResponse<SmtpSettingsDto>.ErrorResult(
+                        _localizationService.GetLocalizedString("MailController.SmtpSettingsIncomplete"),
+                        _localizationService.GetLocalizedString("MailController.SmtpSettingsIncomplete"),
+                        StatusCodes.Status400BadRequest);
+                }
 
-                return ApiResponse<SmtpSettingsDto>.SuccessResult(
-                    createdDto,
-                    _localizationService.GetLocalizedString("SmtpSettingsService.SmtpSettingsCreated"));
+                entity.UpdatedDate = DateTimeProvider.Now;
+                entity.UpdatedBy = userId;
+
+                await _unitOfWork.SmtpSettings.UpdateAsync(entity).ConfigureAwait(false);
             }
 
-            _mapper.Map(dto, entity);
-
-            if (!string.IsNullOrWhiteSpace(dto.Password))
-                entity.PasswordEncrypted = _protector.Protect(dto.Password);
-
-            entity.UpdatedDate = DateTimeProvider.Now;
-            entity.UpdatedBy = userId;
-
-            await _unitOfWork.SmtpSettings.UpdateAsync(entity).ConfigureAwait(false);
             await _unitOfWork.SaveChangesAsync().ConfigureAwait(false);
 
             InvalidateCache();
 
-            var updatedDto = _mapper.Map<SmtpSettingsDto>(entity);
+            var resultDto = _mapper.Map<SmtpSettingsDto>(entity);
 
             return ApiResponse<SmtpSettingsDto>.SuccessResult(
-                updatedDto,
-                _localizationService.GetLocalizedString("SmtpSettingsService.SmtpSettingsUpdated"));
+                resultDto,
+                _localizationService.GetLocalizedString(
+                    isNew
+                        ? "SmtpSettingsService.SmtpSettingsCreated"
+                        : "SmtpSettingsService.SmtpSettingsUpdated"));
         }
         catch (Exception ex)
         {
+            var details = ex.InnerException?.Message;
+            var message = string.IsNullOrWhiteSpace(details) ? ex.Message : $"{ex.Message} | {details}";
+
             return ApiResponse<SmtpSettingsDto>.ErrorResult(
                 _localizationService.GetLocalizedString("SmtpSettingsService.InternalServerError"),
-                _localizationService.GetLocalizedString("SmtpSettingsService.UpdateExceptionMessage", ex.Message, StatusCodes.Status500InternalServerError));
+                _localizationService.GetLocalizedString("SmtpSettingsService.UpdateExceptionMessage", message, StatusCodes.Status500InternalServerError));
         }
     }
 
@@ -152,11 +176,9 @@ public class SmtpSettingsService : ISmtpSettingsService
         if (_cache.TryGetValue(CacheKey, out SmtpSettingsRuntimeDto? cached) && cached != null)
             return cached;
 
-        var entity = await _unitOfWork.SmtpSettings
-            .Query()
-            .AsNoTracking()
-            .Where(x => x.Id == 1 && !x.IsDeleted)
-            .FirstOrDefaultAsync().ConfigureAwait(false);
+        var entity = await ActiveSettings(_unitOfWork.SmtpSettings.Query().AsNoTracking())
+            .FirstOrDefaultAsync()
+            .ConfigureAwait(false);
 
         if (entity == null)
             throw new InvalidOperationException(
