@@ -141,6 +141,11 @@ namespace salesdesk_api.Modules.Identity.Application.Dtos
         [Required]
         [EmailAddress]
         public string Email { get; set; } = string.Empty;
+
+        /// <summary>Frontend reset page URL without query string (e.g. https://salesdesk.v3rii.com/reset-password).</summary>
+        public string? ResetUrl { get; set; }
+
+        public string? ResetPasswordUrl { get; set; }
     }
 
     public class ResetPasswordRequest

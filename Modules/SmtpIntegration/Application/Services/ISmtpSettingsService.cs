@@ -7,5 +7,8 @@ public interface ISmtpSettingsService
 
     Task<SmtpSettingsRuntimeDto> GetRuntimeAsync();
 
+    /// <summary>Returns false when SMTP row is missing or Host/Username/Password/FromEmail are not set.</summary>
+    Task<bool> IsRuntimeMailConfiguredAsync();
+
     void InvalidateCache();
 }

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using System.Security.Cryptography;
 
 namespace salesdesk_api.Modules.SmtpIntegration.Application.Services;
 
@@ -180,5 +181,25 @@ public class SmtpSettingsService : ISmtpSettingsService
         _cache.Set(CacheKey, runtime);
 
         return runtime;
+    }
+
+    public async Task<bool> IsRuntimeMailConfiguredAsync()
+    {
+        try
+        {
+            var smtp = await GetRuntimeAsync().ConfigureAwait(false);
+            return !string.IsNullOrWhiteSpace(smtp.Host)
+                   && !string.IsNullOrWhiteSpace(smtp.Username)
+                   && !string.IsNullOrWhiteSpace(smtp.Password)
+                   && !string.IsNullOrWhiteSpace(smtp.FromEmail);
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
     }
 }

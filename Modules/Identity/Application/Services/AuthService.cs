@@ -1,10 +1,14 @@
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using salesdesk_api.UnitOfWork;
 using Hangfire;
 using Infrastructure.BackgroundJobs.Interfaces;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using salesdesk_api.Modules.Identity.Application;
 using salesdesk_api.Shared.Infrastructure.Abstractions;
 
 namespace salesdesk_api.Modules.Identity.Application.Services
@@ -18,6 +22,9 @@ namespace salesdesk_api.Modules.Identity.Application.Services
         private readonly IUserService _userService;
         private readonly IUserSessionCacheService _userSessionCacheService;
         private readonly IAuditLogWriter _auditLogWriter;
+        private readonly ISmtpSettingsService _smtpSettingsService;
+        private readonly IMailJob _mailJob;
+        private readonly ILogger<AuthService> _logger;
         private static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(30);
         public AuthService(
             IUnitOfWork unitOfWork,
@@ -26,7 +33,10 @@ namespace salesdesk_api.Modules.Identity.Application.Services
             IConfiguration configuration,
             IUserService userService,
             IUserSessionCacheService userSessionCacheService,
-            IAuditLogWriter auditLogWriter)
+            IAuditLogWriter auditLogWriter,
+            ISmtpSettingsService smtpSettingsService,
+            IMailJob mailJob,
+            ILogger<AuthService> logger)
         {
             _unitOfWork = unitOfWork;
             _jwtService = jwtService;
@@ -35,6 +45,9 @@ namespace salesdesk_api.Modules.Identity.Application.Services
             _userService = userService;
             _userSessionCacheService = userSessionCacheService;
             _auditLogWriter = auditLogWriter;
+            _smtpSettingsService = smtpSettingsService;
+            _mailJob = mailJob;
+            _logger = logger;
         }
 
         public async Task<ApiResponse<UserDto>> GetUserByUsernameAsync(string username)
@@ -577,53 +590,93 @@ namespace salesdesk_api.Modules.Identity.Application.Services
         {
             try
             {
-                var user = await _unitOfWork.Users.Query().FirstOrDefaultAsync(u => u.Email == request.Email).ConfigureAwait(false);
+                var normalizedEmail = request.Email.Trim();
+                var user = await _unitOfWork.Users.Query()
+                    .FirstOrDefaultAsync(u =>
+                        !u.IsDeleted
+                        && u.IsActive
+                        && u.Email != null
+                        && u.Email.ToLower() == normalizedEmail.ToLower())
+                    .ConfigureAwait(false);
+
+                if (user == null)
+                {
+                    var genericMsg = _localizationService.GetLocalizedString("OperationSuccessful");
+                    return ApiResponse<string>.SuccessResult(string.Empty, genericMsg);
+                }
+
+                if (!await _smtpSettingsService.IsRuntimeMailConfiguredAsync().ConfigureAwait(false))
+                {
+                    var traceId = Activity.Current?.TraceId.ToString();
+                    _logger.LogError(
+                        "Password reset aborted: SMTP is not configured. UserId={UserId}, Email={Email}, TraceId={TraceId}",
+                        user.Id,
+                        user.Email,
+                        traceId);
+
+                    return PasswordResetEmailSendFailedResponse();
+                }
+
                 var token = Guid.NewGuid().ToString("N");
                 var tokenHash = ComputeSha256Hash(token);
                 var expiresAt = DateTime.UtcNow.AddMinutes(30);
 
-                if (user != null)
+                var reset = new PasswordResetRequest
                 {
-                    var reset = new PasswordResetRequest
-                    {
-                        UserId = user.Id,
-                        TokenHash = tokenHash,
-                        ExpiresAt = expiresAt,
-                        CreatedDate = DateTimeProvider.Now,
-                        IsDeleted = false
-                    };
-                    await _unitOfWork.Repository<PasswordResetRequest>().AddAsync(reset).ConfigureAwait(false);
-                    await _unitOfWork.SaveChangesAsync().ConfigureAwait(false);
-                    
-                    var fullName = string.Join(" ", new[] { user.FirstName, user.LastName }.Where(x => !string.IsNullOrWhiteSpace(x)));
-                    if (string.IsNullOrWhiteSpace(fullName))
-                    {
-                        fullName = user.Username;
-                    }
+                    UserId = user.Id,
+                    TokenHash = tokenHash,
+                    ExpiresAt = expiresAt,
+                    CreatedDate = DateTimeProvider.Now,
+                    IsDeleted = false
+                };
+                await _unitOfWork.Repository<PasswordResetRequest>().AddAsync(reset).ConfigureAwait(false);
+                await _unitOfWork.SaveChangesAsync().ConfigureAwait(false);
 
-                    var frontendBaseUrl = _configuration["FrontendSettings:BaseUrl"] ?? "http://localhost:5173";
-                    var resetPasswordPath = _configuration["FrontendSettings:ResetPasswordPath"] ?? "/reset-password";
-                    var resetLink = $"{frontendBaseUrl}{resetPasswordPath}?token={token}";
-
-                    var emailSubject = _localizationService.GetLocalizedString("PasswordResetEmailSubject");
-                    BackgroundJob.Enqueue<IMailJob>(job =>
-                        job.SendPasswordResetEmailAsync(
-                            user.Email,
-                            fullName,
-                            resetLink,
-                            emailSubject));
-
-                    await WriteIdentityAuditAsync(
-                        "auth.password-reset.request",
-                        user.Id.ToString(),
-                        "Succeeded",
-                        newValues: new
-                        {
-                            User = CreateIdentityUserAuditSnapshot(user),
-                            ExpiresAt = expiresAt
-                        },
-                        changedFields: ["PasswordResetRequest", "ExpiresAt"]).ConfigureAwait(false);
+                var fullName = string.Join(" ", new[] { user.FirstName, user.LastName }.Where(x => !string.IsNullOrWhiteSpace(x)));
+                if (string.IsNullOrWhiteSpace(fullName))
+                {
+                    fullName = user.Username;
                 }
+
+                var resetLink = PasswordResetLinkBuilder.Build(
+                    request.ResetUrl,
+                    request.ResetPasswordUrl,
+                    token,
+                    _configuration);
+
+                var emailSubject = _localizationService.GetLocalizedString("PasswordResetEmailSubject");
+
+                try
+                {
+                    await _mailJob.SendPasswordResetEmailAsync(
+                        user.Email,
+                        fullName,
+                        resetLink,
+                        emailSubject).ConfigureAwait(false);
+                }
+                catch (Exception mailEx)
+                {
+                    var traceId = Activity.Current?.TraceId.ToString();
+                    _logger.LogError(
+                        mailEx,
+                        "Password reset email send failed. UserId={UserId}, Email={Email}, TraceId={TraceId}",
+                        user.Id,
+                        user.Email,
+                        traceId);
+
+                    return PasswordResetEmailSendFailedResponse();
+                }
+
+                await WriteIdentityAuditAsync(
+                    "auth.password-reset.request",
+                    user.Id.ToString(),
+                    "Succeeded",
+                    newValues: new
+                    {
+                        User = CreateIdentityUserAuditSnapshot(user),
+                        ExpiresAt = expiresAt
+                    },
+                    changedFields: ["PasswordResetRequest", "ExpiresAt"]).ConfigureAwait(false);
 
                 var msg = _localizationService.GetLocalizedString("OperationSuccessful");
                 return ApiResponse<string>.SuccessResult(string.Empty, msg);
@@ -632,6 +685,16 @@ namespace salesdesk_api.Modules.Identity.Application.Services
             {
                 return ApiResponse<string>.ErrorResult(_localizationService.GetLocalizedString("AuthErrorOccurred"), ex.Message ?? string.Empty, 500);
             }
+        }
+
+        private ApiResponse<string> PasswordResetEmailSendFailedResponse()
+        {
+            var msg = _localizationService.GetLocalizedString("PasswordResetEmailSendFailed");
+            return ApiResponse<string>.ErrorResult(
+                msg,
+                msg,
+                StatusCodes.Status503ServiceUnavailable,
+                errorCode: "PasswordResetEmailSendFailed");
         }
 
         public async Task<ApiResponse<bool>> ResetPasswordAsync(ResetPasswordRequest request)
@@ -647,7 +710,12 @@ namespace salesdesk_api.Modules.Identity.Application.Services
 
                 if (reset == null || reset.User == null)
                 {
-                    return ApiResponse<bool>.ErrorResult(_localizationService.GetLocalizedString("ValidationError"), _localizationService.GetLocalizedString("ValidationError"), 400);
+                    var tokenMsg = _localizationService.GetLocalizedString("PasswordResetTokenInvalidOrExpired");
+                    return ApiResponse<bool>.ErrorResult(
+                        tokenMsg,
+                        tokenMsg,
+                        StatusCodes.Status400BadRequest,
+                        errorCode: "PasswordResetTokenInvalidOrExpired");
                 }
 
                 reset.UsedAt = now;

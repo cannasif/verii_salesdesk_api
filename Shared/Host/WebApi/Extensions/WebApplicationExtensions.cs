@@ -192,6 +192,23 @@ public static class WebApplicationExtensions
             Authorization = new[] { new HangfireAuthorizationFilter() }
         });
 
+        var skipBackgroundBootstrap = string.Equals(
+            app.Configuration["SalesdeskRuntime:SkipBackgroundBootstrap"],
+            "true",
+            StringComparison.OrdinalIgnoreCase);
+        if (skipBackgroundBootstrap)
+        {
+            app.Logger.LogWarning(
+                "Hangfire background server is disabled (SalesdeskRuntime:SkipBackgroundBootstrap=true). " +
+                "BackgroundJob.Enqueue calls will not run until a Hangfire worker is started.");
+        }
+        else
+        {
+            app.Logger.LogInformation(
+                "Hangfire background server is enabled (queues: default, dead-letter). " +
+                "Critical mail jobs (MailJob) are monitored; failed jobs appear in /hangfire.");
+        }
+
         return app;
     }
 
